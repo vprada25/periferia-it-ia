@@ -56,6 +56,11 @@ export async function createPurchaseOrder(caseId: string, _prev: ActionState): P
 export async function resetDemo(_prev: ActionState): Promise<ActionState> {
   return guarded(async () => {
     await backend.post<{ ok: true }>("/api/reset", {})
+    // Chat sessions live in the agent process: clear them too, so Hermes does not answer from stale history.
+    await fetch(`${serverEnv.agentUrl}/api/sessions/reset`, {
+      method: "POST",
+      headers: serverEnv.accessKey ? { Authorization: `Bearer ${serverEnv.accessKey}` } : {},
+    }).catch(() => undefined)
     return "Demo reiniciada."
   })
 }

@@ -2,6 +2,8 @@ import { ActionButton } from "@/components/action-button"
 import { resetDemo } from "@/lib/actions"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "Cómo funciona" }
+
 const ARCHITECTURE = `                    ┌──────────────── Render · 1 servicio, 3 procesos ────────────────┐
  Navegador ────────▶│ web (Next.js, SSR)  :3000   ← única entrada pública              │
  Sitio externo ────▶│   /api/chat, /api/sessions ─▶ agent  (LLM + herramientas oc_*)   │

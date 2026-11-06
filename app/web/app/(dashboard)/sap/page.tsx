@@ -1,6 +1,8 @@
 import { money } from "@/components/format"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "SAP y control" }
+
 const KIND_LABEL = { block: "Bloqueo", confirmation: "Confirmación", derived: "Derivado" } as const
 
 /** SAP mock orders, audit control log (control.csv), activity log (log.jsonl) and the control matrix. */

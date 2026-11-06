@@ -4,6 +4,9 @@ import { EVENT_TYPES, type StampedEvent } from "@oc/contracts"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
+/** Browser event fired when the demo is reset, so client state (the chat) starts over too. */
+export const RESET_EVENT = "oc:reset"
+
 function describe(event: StampedEvent): string {
   switch (event.type) {
     case "tool.called":
@@ -35,6 +38,7 @@ export function LiveRefresh() {
     const onEvent = (raw: MessageEvent<string>) => {
       const event = JSON.parse(raw.data) as StampedEvent
       setLast(describe(event))
+      if (event.type === "system.reset") window.dispatchEvent(new Event(RESET_EVENT))
       if (timer.current) clearTimeout(timer.current)
       timer.current = setTimeout(() => router.refresh(), 200)
     }

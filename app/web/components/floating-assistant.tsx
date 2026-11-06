@@ -12,15 +12,25 @@ const GREETING_MS = 9000
 
 type Attention = "none" | "reply" | "confirmation"
 
+/** Short plain-text preview of Hermes' answer: the question if it asks for confirmation, otherwise its opening lines. */
+export function replyPreview(text: string, needsConfirmation: boolean): string {
+  const lines = text
+    .split("\n")
+    .map((line) => line.replace(/[*_`#>]/g, "").replace(/\s+/g, " ").trim())
+    .filter((line) => line && !line.startsWith("|") && !/^[-:| ]+$/.test(line))
+  const question = needsConfirmation ? [...lines].reverse().find((line) => line.includes("?")) : undefined
+  const preview = question ?? lines.slice(0, 2).join(" ")
+  return preview.length > 240 ? `${preview.slice(0, 237)}…` : preview
+}
+
 /** Where the action happened: one case → its detail page; several → the case list; none → stay. */
-export function screenFor(toolCalls: VisibleToolCall[]): { href: string; label: string } | null {
-  const cases = [
-    ...new Set(
-      toolCalls
-        .map((call) => (call.args as { caso?: unknown } | null)?.caso)
-        .filter((caso): caso is string => typeof caso === "string"),
-    ),
-  ]
+export function screenFor(toolCalls: VisibleToolCall[], userText = ""): { href: string; label: string } | null {
+  const fromTools = toolCalls
+    .map((call) => (call.args as { caso?: unknown } | null)?.caso)
+    .filter((caso): caso is string => typeof caso === "string")
+  // No tools used (Hermes answered from the conversation): fall back to the cases the analyst named.
+  const fromText = [...userText.toLowerCase().matchAll(/\bsol-\d{3}\b/g)].map((m) => m[0])
+  const cases = [...new Set(fromTools.length > 0 ? fromTools : fromText)]
   if (cases.length === 1) return { href: `/cases/${cases[0]}`, label: cases[0] ?? "" }
   if (cases.length > 1) return { href: "/cases", label: "los casos" }
   return null
@@ -55,6 +65,7 @@ export function FloatingAssistant() {
   const [showGreeting, setShowGreeting] = useState(false)
   const [focused, setFocused] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ text: string; needsConfirmation: boolean } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -78,6 +89,7 @@ export function FloatingAssistant() {
     if (next) {
       setAttention("none")
       setMovedTo(null)
+      setPreview(null)
     }
     writeFlag(OPEN_KEY, next)
   }, [])
@@ -110,25 +122,68 @@ export function FloatingAssistant() {
           queuedMessage={queued}
           onQueuedSent={() => setQueued(null)}
           onBusyChange={setBusy}
-          onReply={({ needsConfirmation, toolCalls }) => {
-            const screen = screenFor(toolCalls)
+          onReply={({ text, needsConfirmation, toolCalls, userText }) => {
+            const screen = screenFor(toolCalls, userText)
             if (screen && screen.href !== pathname) {
-              // Take the analyst to where the action happened; the bar keeps the answer one click away.
+              // Take the analyst to where the action happened and show what Hermes answered on top of it.
               router.push(screen.href)
               setMovedTo(screen.label)
               setOpen(false)
               writeFlag(OPEN_KEY, false)
               setAttention(needsConfirmation ? "confirmation" : "reply")
+              setPreview({ text: replyPreview(text, needsConfirmation), needsConfirmation })
               return
             }
-            if (!open) setAttention(needsConfirmation ? "confirmation" : "reply")
+            if (!open) {
+              setAttention(needsConfirmation ? "confirmation" : "reply")
+              setPreview({ text: replyPreview(text, needsConfirmation), needsConfirmation })
+            }
           }}
         />
       </section>
 
       {!open && (
         <div className="assistant-dock">
-          {showGreeting && (
+          {preview && (
+            <div className={`reply-preview${preview.needsConfirmation ? " confirm" : ""}`} role="status" aria-live="polite">
+              <div className="reply-head">
+                <AgentAvatar size={30} />
+                <b>{AGENT_PROFILE.name} te respondió{movedTo ? ` · te llevé a ${movedTo}` : ""}</b>
+                <button className="icon-button" onClick={() => setPreview(null)} aria-label="Cerrar aviso">
+                  ×
+                </button>
+              </div>
+              <p>{preview.text}</p>
+              <div className="reply-actions">
+                <button className="primary" onClick={() => toggle(true)}>
+                  Ver respuesta completa
+                </button>
+                {preview.needsConfirmation && (
+                  <>
+                    <button
+                      className="ok"
+                      onClick={() => {
+                        setQueued("Confirmo, procede con la creación de la OC.")
+                        toggle(true)
+                      }}
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => {
+                        setQueued("No, rechazo la confirmación. No crees la OC.")
+                        toggle(true)
+                      }}
+                    >
+                      Rechazar
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          {showGreeting && !preview && (
             <div className="assistant-greeting" role="status">
               <b>{AGENT_PROFILE.greeting}</b>
               <span>Te ayudo con las órdenes de compra:</span>

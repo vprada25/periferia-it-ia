@@ -3,6 +3,8 @@ import { ChartCard, Dumbbell, RankedBars, SegmentedBar, StatTile, type Segment }
 import { money } from "@/components/format"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "Panel" }
+
 const STATUS_SEGMENTS: { status: CaseStatus; label: string; icon: string; tone: string }[] = [
   { status: "po_created", label: "OC creada", icon: "✓", tone: "good" },
   { status: "ready", label: "Lista para crear", icon: "→", tone: "info" },

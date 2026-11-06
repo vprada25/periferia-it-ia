@@ -1,6 +1,8 @@
 import { money } from "@/components/format"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "Maestros" }
+
 /** Master data used by the controls (read-only fixtures). */
 export default async function MasterDataPage() {
   const { proveedores, centros, iva, condiciones } = await backend.masterData()

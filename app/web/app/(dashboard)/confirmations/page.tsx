@@ -4,6 +4,8 @@ import { FindingList } from "@/components/format"
 import { createPurchaseOrder, resolveConfirmation } from "@/lib/actions"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "Confirmaciones" }
+
 /** Approval console (ADR-012): any channel can raise a confirmation; the analyst resolves it here or in the chat. */
 export default async function ConfirmationsPage() {
   const { confirmations, cases } = await backend.snapshot()

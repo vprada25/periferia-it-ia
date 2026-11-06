@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
+import { AGENT_PROFILE } from "@oc/contracts"
+import { AgentAvatar } from "@/components/chat"
 import { FloatingAssistant } from "@/components/floating-assistant"
 import { LiveRefresh } from "@/components/live-refresh"
 import { NavLinks } from "@/components/nav-links"
@@ -17,8 +19,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <div className="app">
       <nav className="nav">
         <div className="brand">
-          Órdenes de compra
-          <small>Reto 03 · SAP simulado</small>
+          <AgentAvatar size={34} />
+          <span>
+            {AGENT_PROFILE.name}
+            <small>Órdenes de compra · SAP</small>
+          </span>
         </div>
         <NavLinks pendingConfirmations={pending} />
         <div className="spacer" />

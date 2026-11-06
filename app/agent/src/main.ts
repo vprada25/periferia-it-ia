@@ -36,6 +36,13 @@ const server = Bun.serve({
         return json(await agent.runTurn(session, parsed.data.message))
       },
     },
+    "/api/sessions/reset": {
+      POST: (req) => {
+        if (!authorized(req)) return denied()
+        sessions.clear()
+        return json({ ok: true })
+      },
+    },
     "/api/sessions/:id": {
       GET: (req) => {
         if (!authorized(req)) return denied()

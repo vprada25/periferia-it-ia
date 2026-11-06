@@ -6,6 +6,11 @@ import { FindingList, StatusBadge, money } from "@/components/format"
 import { createPurchaseOrder, processCase, resolveConfirmation } from "@/lib/actions"
 import { backend } from "@/lib/backend"
 
+export async function generateMetadata(props: PageProps<"/cases/[caseId]">) {
+  const { caseId } = await props.params
+  return { title: caseId }
+}
+
 /** Case detail (SSR): original documents, controls, purchase order payload and traceability. */
 export default async function CaseDetailPage(props: PageProps<"/cases/[caseId]">) {
   const { caseId } = await props.params

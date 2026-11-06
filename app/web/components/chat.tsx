@@ -3,6 +3,7 @@
 import { AGENT_PROFILE, type ChatTurn, type SessionView, type VisibleMessage, type VisibleToolCall } from "@oc/contracts"
 import { marked } from "marked"
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
+import { RESET_EVENT } from "./live-refresh"
 
 const SUGGESTIONS = [
   "Procesa la solicitud sol-001 y crea la OC si todo cuadra.",
@@ -13,9 +14,9 @@ const SUGGESTIONS = [
 
 const SESSION_KEY = "oc-session-id"
 
-function sessionId(): string {
+function sessionId(fresh = false): string {
   try {
-    const existing = sessionStorage.getItem(SESSION_KEY)
+    const existing = fresh ? null : sessionStorage.getItem(SESSION_KEY)
     if (existing) return existing
     const created = crypto.randomUUID().replace(/-/g, "")
     sessionStorage.setItem(SESSION_KEY, created)
@@ -57,7 +58,7 @@ type Props = {
   /** Shown as a close/minimize button in the header (floating panel). */
   onClose?: () => void
   /** Notifies the host when Hermes answers: the tools it used and whether it needs the analyst's confirmation. */
-  onReply?: (turn: { needsConfirmation: boolean; toolCalls: VisibleToolCall[] }) => void
+  onReply?: (turn: { text: string; needsConfirmation: boolean; toolCalls: VisibleToolCall[]; userText: string }) => void
   /** A message typed elsewhere (the collapsed chat bar) to be sent as soon as the chat is ready. */
   queuedMessage?: string | null
   onQueuedSent?: () => void
@@ -80,6 +81,12 @@ export function Chat({ compact = false, onClose, onReply, queuedMessage, onQueue
       .then((r) => (r.ok ? (r.json() as Promise<SessionView>) : null))
       .then((s) => s && setMessages(s.messages))
       .catch(() => undefined)
+    const onReset = () => {
+      setMessages([])
+      setId(sessionId(true))
+    }
+    window.addEventListener(RESET_EVENT, onReset)
+    return () => window.removeEventListener(RESET_EVENT, onReset)
   }, [])
 
   useEffect(() => {
@@ -117,7 +124,7 @@ export function Chat({ compact = false, onClose, onReply, queuedMessage, onQueue
           ? { role: "assistant", text: body.reply, toolCalls: body.toolCalls, needsConfirmation: body.needsConfirmation, ts: new Date().toISOString() }
           : { role: "assistant", text: `⚠️ ${body.error}`, ts: new Date().toISOString() }
       setMessages((m) => [...m, reply])
-      onReply?.({ needsConfirmation: reply.needsConfirmation ?? false, toolCalls: reply.toolCalls ?? [] })
+      onReply?.({ text: reply.text, needsConfirmation: reply.needsConfirmation ?? false, toolCalls: reply.toolCalls ?? [], userText: message })
     } catch {
       setMessages((m) => [...m, { role: "assistant", text: "⚠️ No fue posible contactar al agente.", ts: new Date().toISOString() }])
     } finally {

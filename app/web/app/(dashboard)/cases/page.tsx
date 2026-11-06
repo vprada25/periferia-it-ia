@@ -2,6 +2,8 @@ import Link from "next/link"
 import { StatusBadge, money } from "@/components/format"
 import { backend } from "@/lib/backend"
 
+export const metadata = { title: "Casos" }
+
 /** Case list, server-rendered and refreshed live through SSE. */
 export default async function CasesPage() {
   const { cases } = await backend.snapshot()
