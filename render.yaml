@@ -1,0 +1,29 @@
+# Render Blueprint: New → Blueprint → select this repo. One web service running the three processes.
+services:
+  - type: web
+    name: oc-sap-reto03
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false # set it by hand in the dashboard; never in the repo
+      - key: ANTHROPIC_WORKSPACE_ID
+        sync: false # only for organization-level keys
+      - key: LLM_MODEL
+        value: claude-sonnet-5-5
+      - key: LLM_EFFORT
+        value: low
+      - key: MAX_ITERATIONS
+        value: "25"
+      - key: MAX_SESSION_TOKENS
+        value: "200000"
+      - key: ACCESS_KEY
+        sync: false # optional: protects the web, /api, /mcp and /a2a
+      - key: PUBLIC_URL
+        sync: false # https://<service>.onrender.com (published by the A2A Agent Card)
+      - key: EMBED_ORIGINS
+        value: ""
+      - key: A2A_ALLOW_CONFIRM
+        value: "false"

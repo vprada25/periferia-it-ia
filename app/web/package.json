@@ -1,0 +1,25 @@
+{
+  "name": "@oc/web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:widget": "bun build widget/widget.ts --outfile public/widget.js --minify --target browser",
+    "dev": "bun run build:widget && next dev -p ${PORT:-3000}",
+    "build": "bun run build:widget && next build",
+    "start": "next start -p ${PORT:-3000}",
+    "typecheck": "next typegen && tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@oc/contracts": "workspace:*",
+    "marked": "15.0.12",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}

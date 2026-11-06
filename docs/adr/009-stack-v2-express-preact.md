@@ -1,6 +1,6 @@
 # ADR-009 · Stack v2: Bun + Express + Preact/htm sin build
 
-**Estado:** Aceptado · 2026-11-06 · **Reemplaza a ADR-001**
+**Estado:** Reemplazado por [ADR-017](017-nextjs-anfitrion-monolito.md) · 2026-11-06 (reemplazaba a ADR-001)
 
 ## Contexto
 El ADR-001 eligió Hono y HTML plano para un chat sencillo. Con v2 cambian dos cosas:

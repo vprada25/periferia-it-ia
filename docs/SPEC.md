@@ -36,89 +36,69 @@ Un solo despliegue (monolito) con tres caras sobre **el mismo núcleo**:
 
 ---
 
-## 3. Arquitectura (monolito modular, puertos y adaptadores)
+## 3. Arquitectura (ADR-016 y ADR-018)
+
+Cuatro paquetes TypeScript en `app/`. **Ortogonales:** ninguno importa a otro salvo `contracts`, y se hablan solo por HTTP con tipos compartidos. Se despliegan como **un servicio en Render con tres procesos**; la web es la única entrada pública.
 
 ```
-                         ┌────────────────────────── Monolito (un proceso Bun) ──────────────────────────┐
- Navegador ─ web app ───▶│ channels/http   /  /api/*  /api/events (SSE)  /embed  /widget.js             │
- Otros sitios (widget) ─▶│      │                                                                        │
-                         │      ▼                                                                        │
-                         │ agent/  (LLM)  loop + sesiones ──▶ tools/oc.ts (zod, contrato PRD) ──┐       │
- Host MCP ──────────────▶│ channels/mcp   /mcp · stdio  ───▶ tools/oc.ts ─────────────────────┤       │
- Otro agente (A2A) ─────▶│ channels/a2a   /a2a · agent-card  (determinista, sin LLM) ─────────┤       │
-                         │                                                                    ▼       │
-                         │                    app/OcService (casos de uso) ◀── ConfirmationStore    │
-                         │                         │            │                    EventBus ──▶ SSE │
-                         │                         ▼            ▼                                      │
-                         │                    core/ (reglas puras)   sap/SapAdapter → sap/mock         │
-                         └───────────────────────────────┬────────────────────────────────────────────┘
-                                          fixtures/ (solo lectura)   out/ (escritura)
+Render · 1 Web Service (Docker)
+└─ :PORT  app/web (Next.js 16, SSR)         ← única entrada pública
+     ├─ /api/chat, /api/sessions/*  ─▶ :4100 app/agent   (LLM + ciclo + herramientas oc_*)
+     ├─ /api/*  (incluye SSE)       ─▶ :4000 app/backend (núcleo hexagonal)
+     ├─ /mcp                        ─▶ :4000 backend     (MCP, mismas herramientas oc_*)
+     ├─ /a2a                        ─▶ :4000 backend     (Agente OC determinista)
+     └─ /.well-known/agent-card.json ─▶ :4000 backend
+
+agent ──OcPort por HTTP──▶ backend ──▶ dominio RC1–RC10 ──▶ SAP simulado · out/
 ```
 
-| Capa | Responsabilidad | Depende de |
+| Paquete | Qué contiene | Runtime |
 |---|---|---|
-| `core/` | Tipos zod, maestros, parsers, RC1–RC10, payload, evidencia. **Funciones puras.** | nada |
-| `app/` | `OcService` (casos de uso), `ConfirmationStore`, `EventBus`, repositorios en `out/` | `core/`, `sap/` |
-| `sap/` | `SapAdapter` (interfaz PRD) + `mock.ts` | — |
-| `tools/` | Contrato PRD 6.2: `{ description, args, execute }` sobre `OcService` | `app/` |
-| `agent/`, `llm/` | Ciclo conversacional y adaptador de proveedor | `tools/` |
-| `channels/http` | API, SSE, archivos web, embed | `agent/`, `app/` |
-| `channels/mcp` | Registra `tools/oc.ts` como herramientas MCP | `tools/` |
-| `channels/a2a` | Agent Card + ejecutor determinista | `app/` |
+| `app/contracts` | Modelo del PRD (zod), `OcPort`, DTO de API y chat, eventos, **catálogo de herramientas `oc_*`** | — |
+| `app/backend` | Dominio, aplicación (`OcService`), infraestructura, SAP simulado; adaptadores REST, SSE, MCP, A2A | Bun |
+| `app/agent` | Puerto y adaptador LLM (Claude), ciclo del agente, sesiones, `prompt.md`, conocimiento, cliente HTTP de `OcPort` | Bun |
+| `app/web` | Next.js con SSR, server actions, chat (cliente), proxy de API, `/embed` y `widget.js` | Node |
 
-**Regla de dependencias:** las flechas solo apuntan hacia adentro. `core/` no importa nada del proyecto. Ningún canal importa a otro canal.
+**Separación del PRD:** comportamiento → `app/agent/prompt.md`; conocimiento → `app/agent/src/knowledge/ordenes-compra.md`; ejecución → `app/contracts/src/tools` (reexportadas en `app/agent/src/tools/oc.ts`) sobre los casos de uso del backend.
 
-**Separación del PRD (la evalúan):** comportamiento → `agent/prompt.md`; conocimiento → `src/knowledge/ordenes-compra.md`; ejecución → `src/tools/` + `src/app/` + `src/core/`.
-
-### 3.1 Estructura del repositorio (hexagonal, ADR-016)
+### 3.1 Estructura del repositorio
 
 ```
 reto-03-prada/
-├── agent/prompt.md                         comportamiento del agente conversacional (PRD)
-├── src/
-│   ├── domain/                             DOMINIO · puro, sin I/O
-│   │   ├── model.ts                       esquemas zod y tipos (PRD 7.1, 7.2, 7.4)
-│   │   ├── normalize.ts · parsers.ts      NIT, nombres, montos, cotización, factura
-│   │   ├── master-data.ts                     búsquedas puras sobre los maestros
-│   │   ├── rules/                         una estrategia ControlRule por RC + validar()
-│   │   ├── purchase-order-builder.ts                construcción de la OC con trazabilidad
-│   │   ├── evidence.ts                    texto canónico + sha256
-│   │   └── case-state.ts                  máquina de estados del caso
-│   ├── application/                        APLICACIÓN
-│   │   ├── ports/                          entrada: oc-port.ts · salida: data-source.ts, repository.ts, events.ts, clock.ts
-│   │   ├── oc-service.ts                   casos de uso (fachada que implementa OcPort)
-│   │   └── confirmations.ts               registro central por caso (ADR-012)
-│   ├── infrastructure/                     ADAPTADORES DE SALIDA
-│   │   ├── fixtures/fixture-data-source.ts     lee paquetes y maestros de fixtures/
-│   │   ├── persistence/file-repository.ts   artefactos del PRD en out/  [postgres-repository.ts opcional]
-│   │   ├── events/in-memory-event-bus.ts          publicador/observador en memoria
-│   │   └── system-clock.ts
-│   ├── sap/adapter.ts · sap/mock.ts        puerto SAP + adaptador simulado (ubicación exigida por el PRD)
-│   ├── llm/adapter.ts · anthropic.ts · factory.ts   puerto LLM + adaptador Claude
-│   ├── interfaces/                         ADAPTADORES DE ENTRADA
-│   │   ├── http/  (api.ts, sse.ts, embed.ts)
-│   │   ├── mcp/   (server.ts, stdio.ts)
-│   │   └── a2a/   (agent-card.ts, commands.ts, executor.ts)
-│   ├── tools/oc.ts · tools/registry.ts     adaptador de entrada con el contrato del PRD (oc_<export>)
-│   ├── agent/loop.ts · agent/session.ts    agente conversacional
-│   ├── knowledge/ordenes-compra.md         conocimiento del proceso (PRD)
-│   ├── bootstrap.ts                        raíz de composición: crea e inyecta las implementaciones
-│   └── server.ts                           arranque HTTP (usa bootstrap)
-├── web/  index.html · app.js · chat.js · embed.html · widget.js · styles.css
-├── modulo/                                 bonus PRD 9.4 (generado)
-├── scripts/  a2a-client.ts · build-modulo.ts
-├── tests/rules.test.ts                    los 6 casos del PRD con bun test
-├── fixtures/reto-03/...                    sin modificar
-├── docs/  SPEC.md · PLAN.md · PRD.md · adr/
-├── demo.ts · Dockerfile · render.yaml · .env.example · package.json · tsconfig.json · bunfig.toml
-├── README.md · SOLUCION.md
+├── app/
+│   ├── contracts/src/   model.ts · oc-port.ts · records.ts · events.ts · chat.ts · confirmation.ts · case-status.ts
+│   │                    tools/ (registry.ts decorador + oc.ts herramientas del PRD)
+│   ├── backend/
+│   │   ├── src/domain/          reglas RC1–RC10 (rules/), purchase-order-builder, evidence, case-state, parsers
+│   │   ├── src/application/     oc-service.ts (fachada), confirmations.ts, ports/ (data-source, repository, events, clock, sap-reader)
+│   │   ├── src/infrastructure/  fixtures/, persistence/ (out/), events/ (bus en memoria), system-clock
+│   │   ├── src/sap/             adapter.ts (interfaz del PRD) · mock.ts
+│   │   ├── src/interfaces/      http/ (REST + SSE) · mcp/ (HTTP + stdio) · a2a/ (comandos, ejecutor, Agent Card)
+│   │   ├── src/bootstrap.ts     raíz de composición · main.ts (Bun.serve)
+│   │   └── tests/rules.test.ts  los 6 casos del PRD
+│   ├── agent/
+│   │   ├── prompt.md            system prompt (comportamiento)
+│   │   └── src/                 llm/ · agent/ (loop, session, system-prompt) · tools/oc.ts · knowledge/ · oc-http-client.ts · main.ts
+│   └── web/
+│       ├── app/(dashboard)/     páginas SSR: reto, cases, cases/[caseId], confirmations, sap, master-data
+│       ├── app/api/[...path]/   proxy hacia agent/backend · app/mcp · app/a2a · app/embed · app/login
+│       ├── components/          chat.tsx · live-refresh.tsx · action-button.tsx · nav-links.tsx
+│       ├── lib/                 backend.ts (cliente SSR tipado) · actions.ts (server actions) · proxy-request.ts
+│       ├── proxy.ts             política de frame para /embed
+│       └── widget/widget.ts     → public/widget.js
+├── scripts/   dev.ts · start.ts (supervisor de 3 procesos) · a2a-client.ts · build-modulo.ts
+├── modulo/    bonus PRD 9.4 (generado)
+├── fixtures/reto-03/   entregados por Periferia (sin modificar)
+├── docs/      PRD.md · SPEC.md · PLAN.md · adr/
+├── demo.ts · Dockerfile · render.yaml · .env.example · package.json (workspaces) · tsconfig.base.json
+└── README.md · SOLUCION.md
 ```
 
-**Patrones aplicados** (detalle y justificación en ADR-016): Adapter (todos los adaptadores), Facade (`OcService`), Strategy (reglas y proveedor LLM), Builder (orden de compra), Observer (eventos → SSE), Decorator (envoltura de herramientas), Command (agente A2A), State (ciclo del caso), Factory Method (composición). Sin Singleton: todo se inyecta desde `bootstrap.ts`.
+**Patrones aplicados** (detalle en ADR-016): Adapter (todos los adaptadores), Facade (`OcService`), Strategy (reglas y proveedor LLM), Builder (orden de compra), Observer (eventos → SSE), Decorator (envoltura de herramientas), Command (agente A2A), State (ciclo del caso), Factory Method (composición). Sin Singleton: todo se inyecta desde las raíces de composición.
 
 ---
 
-## 4. Casos de uso (`application/oc-service.ts`)
+## 4. Casos de uso (`app/backend/src/application/oc-service.ts`)
 
 | Método | Hace | Evento emitido |
 |---|---|---|
@@ -222,23 +202,24 @@ type Confirmacion = {
 | **Confirmaciones** | Pendientes con valores en conflicto y botones Aprobar / Rechazar | ✅ |
 | **Maestros** | Proveedores, centros de costo con aprobadores y topes, IVA, condiciones de pago | — |
 | **SAP y control** | Órdenes creadas (`ordenes.jsonl`), `control.csv` con % de retroactivas, log de herramientas con canal de origen | ✅ |
-| **Panel del agente** | Chat fijo a la derecha en todas las vistas: tool calls como tarjetas, estado de confirmación resaltado | ✅ |
+| **Hermes (barra central)** | Barra de chat centrada abajo con el rostro y el nombre del agente (`AGENT_PROFILE` en `contracts`), saludo animado la primera vez y sus capacidades escribiéndose en ciclo. Escribir en la barra o pulsar ⌃ despliega el chat como panel centrado sobre cualquier vista: tool calls como tarjetas, confirmación resaltada, aviso en el botón si responde estando minimizado. El chat no se desmonta al minimizar. | ✅ |
 
-### 9.2 API
+### 9.2 API (pública a través de la web)
 
-| Método | Ruta | Contrato |
-|---|---|---|
-| `POST` | `/api/chat` | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation, usage }` (PRD 6.4) |
-| `GET` | `/api/sessions/:id` | Historial de la sesión (PRD 6.4) |
-| `GET` | `/api/health` | `{ ok, provider, model, canales: ["http","mcp","a2a"] }` sin claves (PRD 6.4) |
-| `GET` | `/api/estado` | Instantánea de `OcService.estado()` |
-| `GET` | `/api/casos/:caso` | Documentos + último resultado de validación, payload y trazabilidad |
-| `GET` | `/api/maestros` | Los 4 maestros |
-| `POST` | `/api/confirmaciones/:caso` | `{ aprobar: boolean }` → resuelve desde la web |
-| `POST` | `/api/reset` | Limpia `out/` (para repetir la demo) |
-| `GET` | `/api/events` | SSE: `herramienta.llamada`, `caso.validado`, `confirmacion.*`, `oc.*` |
+| Método | Ruta | Servicio | Contrato |
+|---|---|---|---|
+| `POST` | `/api/chat` | agent | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation, usage }` (PRD 6.4) |
+| `GET` | `/api/sessions/:id` | agent | Historial de la sesión (PRD 6.4) |
+| `GET` | `/api/health` | backend | `{ ok, service, channels }` sin claves (PRD 6.4) |
+| `GET` | `/api/state` | backend | Instantánea: casos, confirmaciones, órdenes, control, actividad, matriz de reglas |
+| `GET` | `/api/cases` · `/api/cases/:caseId` · `/api/cases/:caseId/package` | backend | Lista, detalle (documentos + validación + payload) y paquete normalizado |
+| `POST` | `/api/cases/:caseId/{validate,evidence,payload,process,create}` | backend | Casos de uso; el cuerpo lleva `{ channel, who?, confirmed? }` |
+| `GET`/`POST` | `/api/confirmations/:caseId` | backend | Consultar / resolver `{ approve, channel, who }` |
+| `GET` | `/api/master-data` | backend | Los 4 maestros |
+| `POST` | `/api/activity` · `/api/reset` | backend | Registrar actividad de un canal · reiniciar la demo |
+| `GET` | `/api/events` | backend | SSE con los eventos de dominio |
 
-La web carga `/api/estado` al abrir y luego aplica los eventos SSE. Si la conexión SSE se cae, el navegador reconecta solo y vuelve a pedir `/api/estado`.
+La web hace SSR llamando al backend directamente (servidor a servidor) y usa server actions para procesar, aprobar o crear. `LiveRefresh` escucha `/api/events` y refresca la página cuando algo cambia.
 
 ---
 
