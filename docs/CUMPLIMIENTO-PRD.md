@@ -79,8 +79,8 @@ Estado: ✅ cumple · ⚠️ cumple con desviación documentada · ⏳ pendiente
 | Requisito | Estado | Evidencia |
 |---|---|---|
 | `SOLUCION.md` con las 12 secciones | ✅ | `SOLUCION.md` |
-| `README.md` (un comando, variables, demo, link, clave) | ⏳ | el link se completa al desplegar |
-| Link público activo | ⏳ | despliegue en Render (`render.yaml`) |
+| `README.md` (un comando, variables, demo, link, clave) | ✅ | link y nota de acceso en el README |
+| Link público activo | ✅ | https://oc-sap-reto03.onrender.com (health, web, chat, MCP, A2A y SSE verificados) |
 | Bonus `modulo/` con las mismas piezas que la app | ✅ | `bun run modulo`; `app/agent/tests/modulo.test.ts` |
 | Entrega sin `node_modules/`, `out/`, `.env` | ✅ | `.gitignore` |
 

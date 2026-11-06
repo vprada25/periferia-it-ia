@@ -182,7 +182,8 @@ Propondría la regla **"sin OC no se radica la factura"** (*no PO, no pay*), apl
 | HU-5 Crear la OC en SAP simulado | Hecho | Secuencia desde 4500000001, idempotencia y `control.csv` por intento. Falta el adaptador SAP real (§6). |
 | HU-6 Manejo de errores | Hecho | Errores legibles; la herramienta nunca lanza; un caso malo no detiene el resto. |
 | Chat con el modelo real | Hecho | Verificado con el prompt del PRD (sol-004): 4 herramientas, pregunta de confirmación y, tras "Confirmo", OC creada con canal `chat` en el control. |
-| MCP, A2A, embed, `modulo/` | Hecho | Fuera del PRD (salvo el bonus); probados de punta a punta. |
+| MCP, A2A, embed, `modulo/` | Hecho | Fuera del PRD (salvo el bonus); probados de punta a punta, también en el despliegue. |
+| Link público | Hecho | https://oc-sap-reto03.onrender.com |
 | Postgres | Diseñado (ADR-015) | Implementar el adaptador `PostgresRepository`. |
 
 Para producción faltaría además: autenticación de usuarios (hoy hay una clave compartida opcional), multiusuario y un broker de eventos si se escala a varias instancias.

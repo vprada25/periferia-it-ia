@@ -10,7 +10,9 @@ Agente que lee el paquete de una compra (solicitud, cotización, aprobación y f
 
 La explicación de la solución está en [`SOLUCION.md`](SOLUCION.md); la especificación en [`docs/SPEC.md`](docs/SPEC.md) y las decisiones en [`docs/adr/`](docs/adr/README.md).
 
-**Link de prueba:** `https://<servicio>.onrender.com` (se completa al desplegar) · **Clave de acceso:** se entrega con el link si `ACCESS_KEY` está activa.
+**Link de prueba:** https://oc-sap-reto03.onrender.com · **Clave de acceso:** no se requiere (link abierto; el gasto del modelo tiene límite en la consola de Anthropic).
+
+> El plan gratuito de Render se duerme tras 15 minutos sin uso: la primera visita puede tardar hasta un minuto en responder.
 
 ---
 
@@ -75,7 +77,7 @@ El detalle completo está en `docs/SPEC.md` §9.2.
 **MCP (HTTP):**
 
 ```bash
-claude mcp add --transport http oc-sap https://<servicio>.onrender.com/mcp --header "Authorization: Bearer <ACCESS_KEY>"
+claude mcp add --transport http oc-sap https://oc-sap-reto03.onrender.com/mcp
 ```
 
 **MCP (stdio, local):**
@@ -93,7 +95,7 @@ bun run a2a:demo     # recorre los 6 casos por A2A
 **Embed:**
 
 ```html
-<script src="https://<servicio>.onrender.com/widget.js" data-title="Asistente OC" async></script>
+<script src="https://oc-sap-reto03.onrender.com/widget.js" async></script>
 ```
 
 **Módulo reutilizable (bonus PRD 9.4):** `bun run modulo` genera `modulo/` desde los mismos archivos que usa la app.
