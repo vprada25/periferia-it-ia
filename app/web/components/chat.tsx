@@ -26,6 +26,39 @@ function sessionId(fresh = false): string {
   }
 }
 
+const HISTORY_PREFIX = "oc-chat-history:"
+const HISTORY_LIMIT = 60
+
+/**
+ * Local copy of the visible conversation. The agent keeps sessions in memory, so a redeploy or the free plan
+ * going to sleep empties them; the browser copy keeps the analyst's conversation on screen anyway.
+ */
+function loadHistory(id: string): VisibleMessage[] {
+  try {
+    const raw = sessionStorage.getItem(HISTORY_PREFIX + id)
+    return raw ? (JSON.parse(raw) as VisibleMessage[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(id: string, messages: VisibleMessage[]): void {
+  try {
+    sessionStorage.setItem(HISTORY_PREFIX + id, JSON.stringify(messages.slice(-HISTORY_LIMIT)))
+  } catch {
+    // storage full or unavailable: the server copy still exists while the agent is up
+  }
+}
+
+function clearCurrentHistory(): void {
+  try {
+    const id = sessionStorage.getItem(SESSION_KEY)
+    if (id) sessionStorage.removeItem(HISTORY_PREFIX + id)
+  } catch {
+    // ignore
+  }
+}
+
 const escapeHtml = (text: string) =>
   text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c)
 
@@ -77,17 +110,27 @@ export function Chat({ compact = false, onClose, onReply, queuedMessage, onQueue
   useEffect(() => {
     const current = sessionId()
     setId(current)
+    // Show the local copy right away; the server copy only replaces it when it has more (never wipes it).
+    const local = loadHistory(current)
+    if (local.length > 0) setMessages(local)
     fetch(`/api/sessions/${current}`)
       .then((r) => (r.ok ? (r.json() as Promise<SessionView>) : null))
-      .then((s) => s && setMessages(s.messages))
+      .then((s) => {
+        if (s) setMessages((shown) => (s.messages.length > shown.length ? s.messages : shown))
+      })
       .catch(() => undefined)
     const onReset = () => {
+      clearCurrentHistory()
       setMessages([])
       setId(sessionId(true))
     }
     window.addEventListener(RESET_EVENT, onReset)
     return () => window.removeEventListener(RESET_EVENT, onReset)
   }, [])
+
+  useEffect(() => {
+    if (id && messages.length > 0) saveHistory(id, messages)
+  }, [id, messages])
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" })
